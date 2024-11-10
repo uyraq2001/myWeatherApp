@@ -1,0 +1,74 @@
+﻿@page "/weather"
+@inject HttpClient Http
+
+<PageTitle>Weather</PageTitle>
+
+<h1>Weather</h1>
+
+<p role="status">Weather in @place at @time</p>
+
+<form method="post">
+    <input asp-for="" /><br />
+</form>
+
+@if (forecast == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Temp. (C)</th>
+                <th>Humidity</th>
+                <th>Wind speed</th>
+                <th>Summary</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>@current.temp_c</td>
+                <td>@current.humidity</td>
+                <td>@current.wind_kph</td>
+                <td>@current.condition.text</td>
+            </tr>
+            @foreach (var frcst in forecasts)
+            {
+                <tr>
+                    <td>@frcst.day.maxtemp_c</td>
+                    <td>@frcst.day.maxtemp_c</td>
+                    <td>@frcst.day.maxwind_kph</td>
+                    <td>@frcst.day.condition.text</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private String place = "";
+    private String time = "";
+
+    private dynamic forecast;
+    private dynamic current;
+    private dynamic forecasts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            String json = await
+            Http.GetStringAsync("http://api.weatherapi.com/v1/forecast.json?key=e14437f549434a3084181334241210&q=London&days=4&aqi=no&alerts=no");
+            Console.WriteLine(json);
+            forecast = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(json);
+            current = forecast.current;
+            forecasts = forecast.forecast.forecastday;
+            Console.WriteLine(forecasts[0].day.maxtemp_c);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e.Message);
+        }
+    }
+}
