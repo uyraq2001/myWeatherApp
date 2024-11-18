@@ -1,0 +1,38 @@
+﻿@page "/counter"
+
+<PageTitle>Counter</PageTitle>
+
+<h1>Counter</h1>
+
+<p role="status">Current count: </p>
+
+<button class="btn btn-primary" @onclick="makeRequest">Click me</button>
+
+@code {
+    private String response;
+    private async void makeRequest()
+    {
+        try
+        {
+            Console.WriteLine("RPC Client");
+            await InvokeAsync("");
+
+            Console.WriteLine(" Press [enter] to exit.");
+            Console.ReadLine();
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e.Message);
+        }
+    }
+
+    private static async Task InvokeAsync(string n)
+    {
+        var rpcClient = new RpcClient();
+        await rpcClient.StartAsync();
+
+        Console.WriteLine(" [x] Requesting fib({0})", n);
+        var response = await rpcClient.CallAsync(n);
+        Console.WriteLine(" [.] Got '{0}'", response);
+    }
+}

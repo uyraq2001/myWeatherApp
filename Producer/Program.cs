@@ -1,40 +1,38 @@
-using System.Text;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using System.Text;
 
-var factory = new ConnectionFactory { HostName = "localhost", Port = 5672 };
-using var connection = factory.CreateConnection();
-using var channel = connection.CreateModel();
+const string QUEUE_NAME = "rpc_queue";
 
-channel.QueueDeclare(queue: "rpc_queue",
-                     durable: false,
-                     exclusive: false,
-                     autoDelete: false,
-                     arguments: null);
-channel.BasicQos(prefetchSize: 0, prefetchCount: 1, global: false);
-var consumer = new EventingBasicConsumer(channel);
-channel.BasicConsume(queue: "rpc_queue",
-                     autoAck: false,
-                     consumer: consumer);
-Console.WriteLine(" [x] Awaiting RPC requests");
+var factory = new ConnectionFactory { UserName = "me", Password = "123", HostName = "192.168.31.173" };
+using var connection = await factory.CreateConnectionAsync();
+using var channel = await connection.CreateChannelAsync();
 
-consumer.Received += (model, ea) =>
+await channel.QueueDeclareAsync(queue: QUEUE_NAME, durable: false, exclusive: false,
+    autoDelete: false, arguments: null);
+
+await channel.BasicQosAsync(prefetchSize: 0, prefetchCount: 1, global: false);
+
+var consumer = new AsyncEventingBasicConsumer(channel);
+consumer.ReceivedAsync += async (object sender, BasicDeliverEventArgs ea) =>
 {
-    Console.WriteLine("Request");
-
+    AsyncEventingBasicConsumer cons = (AsyncEventingBasicConsumer)sender;
+    IChannel ch = cons.Channel;
     string response = string.Empty;
 
-    var body = ea.Body.ToArray();
-    var props = ea.BasicProperties;
-    var replyProps = channel.CreateBasicProperties();
-    replyProps.CorrelationId = props.CorrelationId;
+    byte[] body = ea.Body.ToArray();
+    IReadOnlyBasicProperties props = ea.BasicProperties;
+    var replyProps = new BasicProperties
+    {
+        CorrelationId = props.CorrelationId
+    };
 
     try
     {
         var message = Encoding.UTF8.GetString(body);
         int n = int.Parse(message);
         Console.WriteLine($" [.] Fib({message})");
-        response = "Hello world";
+        response = "Hello C# world";
     }
     catch (Exception e)
     {
@@ -44,13 +42,13 @@ consumer.Received += (model, ea) =>
     finally
     {
         var responseBytes = Encoding.UTF8.GetBytes(response);
-        channel.BasicPublish(exchange: string.Empty,
-                             routingKey: props.ReplyTo,
-                             basicProperties: replyProps,
-                             body: responseBytes);
-        channel.BasicAck(deliveryTag: ea.DeliveryTag, multiple: false);
+        await ch.BasicPublishAsync(exchange: string.Empty, routingKey: props.ReplyTo!,
+            mandatory: true, basicProperties: replyProps, body: responseBytes);
+        await ch.BasicAckAsync(deliveryTag: ea.DeliveryTag, multiple: false);
     }
 };
 
+await channel.BasicConsumeAsync(QUEUE_NAME, false, consumer);
+Console.WriteLine(" [x] Awaiting RPC requests");
 Console.WriteLine(" Press [enter] to exit.");
 Console.ReadLine();
